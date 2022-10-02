@@ -1,6 +1,6 @@
 class ChromeDriverInstaller():
-    fullVersion: str
-    version: str
+    fullVersion: list[int]
+    version: int
     compatibleDriverVersion: str | None
     def __init__(self) -> ChromeDriverInstaller: ...
     def getCompatibleDriverVersion(self) -> str | None: ...
