@@ -5,7 +5,10 @@ from untangle import parse
 from zipfile import ZipFile
 from contextlib import closing
 from os.path import isfile, dirname
-from win32com.client import Dispatch
+from win32api import (
+    GetFileVersionInfo,
+    HIWORD, LOWORD,
+)
 
 class ChromeDriverInstaller():
     def __init__(self):
@@ -14,9 +17,8 @@ class ChromeDriverInstaller():
             for attribute in self.__dir__():
                 if attribute.startswith('__') and attribute.endswith('__'):
                     continue
-                attribute = getattr(self, attribute)
-                if isinstance(attribute, classFunctionType):
-                    self.__dict__[attribute.__name__] = lambda: None
+                if isinstance(self.__getattribute__(attribute), classFunctionType):
+                    self.__dict__[attribute] = lambda: None
 
         drive = dirname(__file__)[:2]
         chrome_path = [
@@ -28,24 +30,23 @@ class ChromeDriverInstaller():
         )
         if not chrome_path:
             raise FileNotFoundError('Cannot find chrome!')
-        parser = Dispatch('Scripting.FileSystemObject')
 
-        self.fullVersion = parser.GetFileVersion(chrome_path[0])
-        self.version = self.fullVersion.split('.')[0]
+        def fetchFileVersion():
+            info = GetFileVersionInfo(chrome_path[0], '\\')
+            ms = info['FileVersionMS']
+            ls = info['FileVersionLS']
+            return [HIWORD(ms), LOWORD(ms), HIWORD(ls), LOWORD(ls)]
+
+        self.fullVersion = fetchFileVersion()
+        self.version = self.fullVersion[0]
         self.compatibleDriverVersion = None
-
-    @staticmethod
-    def waitUntilDriverInstall():
-        while not isfile('chromedriver.exe'):
-            pass
-        return None
 
     def getCompatibleDriverVersion(self):
         text = get('https://chromedriver.storage.googleapis.com/?delimiter=/&prefix=').text
         io = StringIO(text)
         xml = parse(io).ListBucketResult.CommonPrefixes
         compatible_driver_version = list(
-            filter(lambda prefix: prefix.children[0].cdata.startswith(self.version), xml),
+            filter(lambda prefix: prefix.children[0].cdata.startswith(self.version.__str__()), xml),
         )
         self.compatibleDriverVersion = compatible_driver_version[0].children[0].cdata
         self.compatibleDriverVersion = self.compatibleDriverVersion[:-1] if self.compatibleDriverVersion.endswith('/') else self.compatibleDriverVersion
@@ -66,5 +67,4 @@ class ChromeDriverInstaller():
     def autoInstall(self):
         self.getCompatibleDriverVersion()
         self.installCompatibleDriver()
-        self.waitUntilDriverInstall()
         return None
